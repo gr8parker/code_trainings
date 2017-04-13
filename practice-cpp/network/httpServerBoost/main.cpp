@@ -7,6 +7,7 @@
 int main(int argc, char** argv)
 {
     Parametres cmd(argc, argv);
+	
     pid_t pid = fork();
     if( !pid) {
 	umask(0);
@@ -23,6 +24,6 @@ int main(int argc, char** argv)
 	std::cout << pid <<std::endl;
 	return 0;
     }
-    
+	
     return 0;
 }

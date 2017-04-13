@@ -4,7 +4,9 @@
 #include "boost/system/error_code.hpp"
 #include "Time.h"
 #include <iostream>
-
+#include <iterator>
+#include <vector>
+#include <algorithm>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -61,6 +63,16 @@ void session::start() {
 					));
 };
 
+void session::send(const char* str, size_t len) {
+    boost::asio::async_write(socket_,
+			     boost::asio::buffer(str, len),
+			     boost::bind(&session::handle_write,
+					 this,
+					 boost::asio::placeholders::error)
+			     );
+	
+}
+
 void session::handle_read(const boost::system::error_code &error,
 		 size_t bytes_tansferred) {
     if( !error) {
@@ -96,47 +108,34 @@ void session::handle_read(const boost::system::error_code &error,
 	    ContentType = "image/jpeg";
 	} else if (file_type == "html") {
 	    ContentType = "text/html";
-	} else {
+	} else 	if( file_type == "jpeg") {
+	    ContentType = "image/png";
+	}else{
 	    ContentType ="application/unknown";
 	}
 	
-	std::ifstream fs;
-	fs.open(file.c_str(), std::ifstream::in);
+	std::ifstream input(file.c_str(), std::ios::binary);
 
-	fs.seekg(0,std::ios_base::end);
-        size_t ContentLength = fs.tellg();
+	std::vector<char> content;
+	std::copy(std::istreambuf_iterator<char>(input),
+		  std::istreambuf_iterator<char>(),
+		  std::back_inserter(content) );
+	size_t ContentLength = content.size() * sizeof(char);
 	
 	// Посылаем заголовки
 	std::string headers = std::string("HTTP/1.0 200 OK\nContent-Type: ") +
 	    ContentType + std::string("\nContent-Length: ") +
 	    std::to_string(ContentLength) +"\n\n";
 
-	boost::asio::async_write(socket_,
-				 boost::asio::buffer(headers, headers.length()),
-				 boost::bind(&session::handle_write,
-					     this,
-					     boost::asio::placeholders::error)
-				 );
-	fs.seekg(0, std::ios_base::beg);
-	std::string line;
-	while( getline(fs, line) ) {
-	    boost::asio::async_write(socket_,
-				     boost::asio::buffer(line, line.length()),
-				     boost::bind(&session::handle_write,
-						 this,
-						 boost::asio::placeholders::error)
-				     );
+	send(headers.c_str(), headers.length());
+	for(int i = 0; i < content.size(); ++i) {
+	    send(&content[i], sizeof(char));
 	}
-	
-	fs.close();
-	std::string enter ="\n";
-	boost::asio::async_write(socket_,
-				 boost::asio::buffer(enter, enter.length()),
-				 boost::bind(&session::handle_write,
-					     this,
-					     boost::asio::placeholders::error)
-				 );
+	input.close();
 
+	std::string enter ="\n";
+	send(enter.c_str(), enter.length());
+	
 	
 	delete this;			     
 
