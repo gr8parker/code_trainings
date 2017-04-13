@@ -29,6 +29,7 @@ public:
 	{}
     
     ~session();
+    void send(const char* str, size_t len);
     void SendError(int n);
     tcp::socket &socket() { return socket_;}
     void start(); // start session, initial function
